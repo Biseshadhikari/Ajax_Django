@@ -1,0 +1,226 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-center bg-gray-900" style="height: 100vh;">
+  <div class="w-full max-w-md bg-gray-800 p-8 rounded-lg shadow-lg">
+    <h2 class="text-2xl font-semibold text-white mb-6 text-center">Assign teacher</h2>
+    <div class="mb-6">
+        {% for message in messages %}
+<div class="flex items-center p-3 rounded-lg 
+{% if message.tags == 'success' %}
+    bg-green-500
+{% elif message.tags == 'info' %}
+    bg-blue-600
+{% elif message.tags == 'error' %}
+    bg-red-600
+{% endif %}
+message">
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-white">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+</svg>
+<div class="ml-2 text-white">{{ message }}</div>
+</div>
+{% endfor %}
+
+<script>
+// Wait for the DOM to be fully loaded
+document.addEventListener("DOMContentLoaded", function() {
+// Select all message elements
+const messages = document.querySelectorAll('.message');
+
+// Set a timeout to remove each message after 30 seconds
+messages.forEach(message => {
+    setTimeout(() => {
+        message.remove();
+    }, 2500); // 30000 milliseconds = 30 seconds
+});
+});
+</script>
+
+
+    </div>
+    <form id="main-form" method="post">
+        {% csrf_token %}
+      <!-- Hidden Fields for IDs -->
+      <input type="hidden" id="class-id" name="class_id">
+      <input type="hidden" id="teacher-id" name="teacher_id">
+
+      <!-- Class Search -->
+      <div class="mb-4">
+        <label for="class" class="block text-sm font-medium text-gray-400 mb-2">Select Class</label>
+        <input type="text" id="class" class="w-full bg-gray-700 border border-gray-600 text-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Search Class">
+        <ul id="class-list" class="mt-2 bg-gray-700 border border-gray-600 rounded-lg max-h-40 overflow-auto hidden">
+          <!-- Dynamic search results will be appended here -->
+        </ul>
+      </div>
+
+      <!-- Teacher Search -->
+      <div class="mb-4">
+        <label for="teacher" class="block text-sm font-medium text-gray-400 mb-2">Select Teacher</label>
+        <input type="text" id="teacher" class="w-full bg-gray-700 border border-gray-600 text-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Search Teacher">
+        <ul id="teacher-list" class="mt-2 bg-gray-700 border border-gray-600 rounded-lg max-h-40 overflow-auto hidden">
+          <!-- Dynamic search results will be appended here -->
+        </ul>
+      </div>
+
+      <!-- Submit Button -->
+      <div class="flex justify-center">
+        <button type="submit" class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">Submit</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add Class Modal -->
+<div id="add-class-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden">
+  <div class="bg-gray-800 p-6 rounded-lg">
+    <h3 class="text-lg font-semibold text-white mb-4">Add New Class</h3>
+    <input type="text" id="new-class-name" class="w-full mb-2 p-2 rounded-lg bg-gray-700 text-white" placeholder="Class Name">
+    <input type="text" id="new-class-description" class="w-full mb-4 p-2 rounded-lg bg-gray-700 text-white" placeholder="Class Description">
+    <div id="class-error" class="text-red-500 mb-4 hidden"></div>
+    <div class="flex justify-end">
+      <button id="save-class" class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 mr-2">Save</button>
+      <button id="close-class-modal" class="bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Teacher Modal -->
+<div id="add-teacher-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden">
+  <div class="bg-gray-800 p-6 rounded-lg">
+    <h3 class="text-lg font-semibold text-white mb-4">Add New Teacher</h3>
+    <input type="text" id="new-teacher-username" class="w-full mb-2 p-2 rounded-lg bg-gray-700 text-white" placeholder="Username">
+    <input type="password" id="new-teacher-password" class="w-full mb-2 p-2 rounded-lg bg-gray-700 text-white" placeholder="Password">
+    <div id="teacher-error" class="text-red-500 mb-4 hidden"></div>
+    <div class="flex justify-end">
+      <button id="save-teacher" class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 mr-2">Save</button>
+      <button id="close-teacher-modal" class="bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  async function searchItems(endpoint, query) {
+    const response = await fetch(`${endpoint}?q=${query}`);
+    return response.json();
+  }
+
+  function setupSearch(inputId, listId, addId, modalId, closeId, endpoint, hiddenId) {
+    const input = document.getElementById(inputId);
+    const list = document.getElementById(listId);
+    const addItem = document.getElementById(addId);
+    const modal = document.getElementById(modalId);
+    const closeModal = document.getElementById(closeId);
+    const hiddenInput = document.getElementById(hiddenId);
+
+    input.addEventListener('input', async function() {
+      const searchValue = this.value.toLowerCase();
+      if (searchValue.length === 0) {
+        list.style.display = 'none';
+        return;
+      }
+      const items = await searchItems(endpoint, searchValue);
+      list.innerHTML = '';
+      if (items.length > 0) {
+        items.forEach(item => {
+          const li = document.createElement('li');
+          li.textContent = item.name || item.username;
+          li.dataset.id = item.id;
+          li.className = 'px-3 py-2 text-gray-300 cursor-pointer hover:bg-gray-600';
+          list.appendChild(li);
+        });
+      } else {
+        const li = document.createElement('li');
+        li.textContent = `+ Add New ${inputId === 'class' ? 'Class' : 'Teacher'}`;
+        li.id = addId;
+        li.className = 'px-3 py-2 text-gray-300 cursor-pointer hover:bg-gray-600';
+        list.appendChild(li);
+      }
+      list.style.display = 'block';
+    });
+
+    list.addEventListener('click', function(e) {
+      if (e.target && e.target.tagName === 'LI') {
+        if (e.target.id === addId) {
+          modal.classList.remove('hidden');
+        } else {
+          input.value = e.target.textContent;
+          hiddenInput.value = e.target.dataset.id;
+          list.style.display = 'none';
+        }
+      }
+    });
+
+    closeModal.addEventListener('click', function() {
+      modal.classList.add('hidden');
+    });
+  }
+
+  setupSearch('class', 'class-list', 'add-class', 'add-class-modal', 'close-class-modal', "{% url 'search_class' %}", 'class-id');
+  setupSearch('teacher', 'teacher-list', 'add-teacher', 'add-teacher-modal', 'close-teacher-modal', "{% url 'search_teacher' %}", 'teacher-id');
+
+  document.getElementById('save-class').addEventListener('click', async function() {
+    const name = document.getElementById('new-class-name').value;
+    const description = document.getElementById('new-class-description').value;
+    const errorElement = document.getElementById('class-error');
+
+    const response = await fetch("{% url 'add_class' %}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': '{{ csrf_token }}'
+      },
+      body: new URLSearchParams({ name, description })
+    });
+
+    const data = await response.json();
+    if (data.success) {
+    
+      document.getElementById('class').value = data.class.name;
+      document.getElementById('class-id').value = data.class.id;
+      document.getElementById('add-class-modal').classList.add('hidden');
+      document.getElementById('class-list').style.display = 'none';
+      errorElement.classList.add('hidden'); // Hide error message if successful
+    } else {
+      
+      errorElement.classList.remove('hidden');
+
+      
+      setTimeout(()=>{ 
+        errorElement.classList.add('hidden');
+      }, 2000);
+
+      
+      errorElement.textContent = data.error
+      
+    }
+  });
+
+  document.getElementById('save-teacher').addEventListener('click', async function() {
+    const username = document.getElementById('new-teacher-username').value;
+    const password = document.getElementById('new-teacher-password').value;
+    const errorElement = document.getElementById('teacher-error');
+
+    const response = await fetch("{% url 'add_teacher' %}", {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': '{{ csrf_token }}'
+      },
+      body: new URLSearchParams({ username, password })
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      document.getElementById('teacher').value = data.teacher.username;
+      document.getElementById('teacher-id').value = data.teacher.id;
+      document.getElementById('add-teacher-modal').classList.add('hidden');
+      document.getElementById('teacher-list').style.display = 'none';
+      errorElement.classList.add('hidden'); // Hide error message if successful
+    } else {
+      errorElement.textContent = data.errors.join(', '); // Assuming `data.errors` is an array of error messages
+      errorElement.classList.remove('hidden');
+    }
+  });
+</script>
+
+{% endblock %}
