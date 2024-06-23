@@ -4,11 +4,6 @@ from django.contrib import messages
 # Create your views here.
 
 
-def home(request):
-    return render(request,'Attendance.html')
-
-
-
 
 def assignteacher(request):
     if request.method == "POST":
